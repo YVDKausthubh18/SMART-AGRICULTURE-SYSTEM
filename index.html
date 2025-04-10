@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Agriculture AI Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap">
+  <style>
+    body { font-family: 'Poppins', sans-serif; }
+    .section { display: block; }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-green-100 via-blue-50 to-green-200 text-gray-800 dark:from-gray-800 dark:to-gray-900 dark:text-white transition-colors duration-500">
+  <!-- Navigation Title -->
+  <nav class="bg-white dark:bg-gray-800 shadow p-4 sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto flex justify-between items-center">
+      <h1 class="text-2xl font-bold text-green-600">🌿 SmartAgro AI</h1>
+      <button id="darkToggle" class="ml-4 p-2 bg-gray-200 dark:bg-gray-700 rounded-full">🌓</button>
+    </div>
+  </nav>
+
+  <!-- Dashboard Content -->
+  <div class="p-4 max-w-6xl mx-auto">
+    <!-- Widgets -->
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mt-6">
+      <div class="p-4 bg-white dark:bg-gray-800 rounded-xl shadow">🌡️ Temp: <span id="temp">--</span>°C</div>
+      <div class="p-4 bg-white dark:bg-gray-800 rounded-xl shadow">💧 Humidity: <span id="humidity">--</span>%</div>
+      <div class="p-4 bg-white dark:bg-gray-800 rounded-xl shadow">🌱 Moisture: <span id="moisture">--</span>%</div>
+      <div class="p-4 bg-white dark:bg-gray-800 rounded-xl shadow">☀️ Light: <span id="light">--</span></div>
+      <div class="p-4 bg-white dark:bg-gray-800 rounded-xl shadow">🚰 Water: <span id="water">--</span></div>
+      <div class="p-4 bg-white dark:bg-gray-800 rounded-xl shadow">⚙️ Pump: <span id="pump">--</span></div>
+    </div>
+    <!-- Charts -->
+    <div class="my-6">
+      <canvas id="sensorChart"></canvas>
+    </div>
+    <!-- Pie Chart -->
+    <div class="my-6">
+      <canvas id="sensorPieChart"></canvas>
+    </div>
+    <!-- AI Analysis -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="p-4 bg-green-100 dark:bg-green-900 rounded-xl shadow">
+        <h2 class="text-xl font-bold mb-2">🤖 AI Rain Prediction</h2>
+        <p id="aiRain">Analyzing...</p>
+      </div>
+      <div class="p-4 bg-blue-100 dark:bg-blue-900 rounded-xl shadow">
+        <h2 class="text-xl font-bold mb-2">💦 Irrigation Suggestion</h2>
+        <p id="aiIrrigation">Analyzing...</p>
+      </div>
+    </div>
+    <!-- Pump Control -->
+    <div class="flex justify-center gap-4 mt-6">
+      <button class="px-4 py-2 bg-green-500 text-white rounded-xl" onclick="controlPump('on')">Start Pump</button>
+      <button class="px-4 py-2 bg-red-500 text-white rounded-xl" onclick="controlPump('off')">Stop Pump</button>
+      <button class="px-4 py-2 bg-indigo-500 text-white rounded-xl" onclick="toggleAuto()">Toggle Auto Mode</button>
+    </div>
+  </div>
+
+  <script>
+    let chart;
+    let pieChart;
+
+    function toggleDarkMode() {
+      document.body.classList.toggle('dark');
+    }
+
+    function updateDashboard(data) {
+      document.getElementById('temp').innerText = data.temperature;
+      document.getElementById('humidity').innerText = data.humidity;
+      document.getElementById('moisture').innerText = data.soil_moisture;
+      document.getElementById('light').innerText = data.light;
+      document.getElementById('water').innerText = data.water_level;
+      document.getElementById('pump').innerText = data.pump;
+
+      if (data.humidity > 80 && data.temperature < 30) {
+        document.getElementById('aiRain').innerText = '🌧️ High chance of rain';
+      } else if (data.humidity > 60) {
+        document.getElementById('aiRain').innerText = '🌦️ Possible light rain';
+      } else {
+        document.getElementById('aiRain').innerText = '☀️ No rain expected';
+      }
+
+      if (data.soil_moisture < 40) {
+        document.getElementById('aiIrrigation').innerText = '💧 Irrigation Required';
+      } else {
+        document.getElementById('aiIrrigation').innerText = '✅ No irrigation needed';
+      }
+
+      const labels = ["Temp", "Humidity", "Moisture"];
+      const values = [data.temperature, data.humidity, data.soil_moisture];
+      if (chart) chart.destroy();
+      chart = new Chart(document.getElementById('sensorChart'), {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Sensor Readings',
+            data: values,
+            backgroundColor: ['#f87171', '#60a5fa', '#34d399']
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+
+      if (pieChart) pieChart.destroy();
+      pieChart = new Chart(document.getElementById('sensorPieChart'), {
+        type: 'pie',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: values,
+            backgroundColor: ['#fbbf24', '#3b82f6', '#10b981']
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: document.body.classList.contains('dark') ? 'white' : 'black'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    async function fetchData() {
+      const res = await fetch('/get');
+      const data = await res.json();
+      updateDashboard(data);
+    }
+
+    function controlPump(state) {
+      fetch('/pump', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state })
+      });
+    }
+
+    function toggleAuto() {
+      fetch('/toggle_auto', { method: 'POST' });
+    }
+
+    document.getElementById('darkToggle').addEventListener('click', toggleDarkMode);
+    setInterval(fetchData, 2000);
+    fetchData();
+  </script>
+</body>
+</html>
