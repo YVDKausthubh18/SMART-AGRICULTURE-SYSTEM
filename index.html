@@ -32,14 +32,15 @@
       <div class="p-4 bg-white dark:bg-gray-800 rounded-xl shadow">🚰 Water: <span id="water">--</span></div>
       <div class="p-4 bg-white dark:bg-gray-800 rounded-xl shadow">⚙️ Pump: <span id="pump">--</span></div>
     </div>
+
     <!-- Charts -->
     <div class="my-6">
       <canvas id="sensorChart"></canvas>
     </div>
-    <!-- Pie Chart -->
     <div class="my-6">
       <canvas id="sensorPieChart"></canvas>
     </div>
+
     <!-- AI Analysis -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div class="p-4 bg-green-100 dark:bg-green-900 rounded-xl shadow">
@@ -51,6 +52,32 @@
         <p id="aiIrrigation">Analyzing...</p>
       </div>
     </div>
+
+    <!-- Daily Summary -->
+    <div class="p-4 mt-4 bg-yellow-100 dark:bg-yellow-900 rounded-xl shadow">
+      <h2 class="text-xl font-bold mb-2">📈 Daily Summary</h2>
+      <p>Max Temp: <span id="maxTemp">--</span>°C</p>
+      <p>Min Humidity: <span id="minHumidity">--</span>%</p>
+      <p>Avg Soil Moisture: <span id="avgMoisture">--</span>%</p>
+    </div>
+
+    <!-- AI Tip -->
+    <div class="p-4 mt-4 bg-purple-100 dark:bg-purple-900 rounded-xl shadow">
+      <h2 class="text-xl font-bold mb-2">🧠 AI Tip</h2>
+      <p id="aiTip">Water plants early morning for better absorption.</p>
+    </div>
+
+    <!-- Weather Forecast -->
+    <div class="p-4 mt-4 bg-blue-200 dark:bg-blue-800 rounded-xl shadow">
+      <h2 class="text-xl font-bold mb-2">🌤️ Weather Forecast</h2>
+      <p>Tomorrow: Partly Cloudy, 28°C</p>
+    </div>
+
+    <!-- Last Updated -->
+    <p class="text-sm mt-6 text-gray-500 dark:text-gray-400 text-center">
+      ⏱️ Last updated: <span id="lastUpdated">--:--:--</span>
+    </p>
+
     <!-- Pump Control -->
     <div class="flex justify-center gap-4 mt-6">
       <button class="px-4 py-2 bg-green-500 text-white rounded-xl" onclick="controlPump('on')">Start Pump</button>
@@ -62,6 +89,9 @@
   <script>
     let chart;
     let pieChart;
+    let maxTemp = -Infinity;
+    let minHumidity = Infinity;
+    let moistureReadings = [];
 
     function toggleDarkMode() {
       document.body.classList.toggle('dark');
@@ -75,12 +105,28 @@
       document.getElementById('water').innerText = data.water_level;
       document.getElementById('pump').innerText = data.pump;
 
+      // Daily Summary Updates
+      if (data.temperature > maxTemp) maxTemp = data.temperature;
+      if (data.humidity < minHumidity) minHumidity = data.humidity;
+      moistureReadings.push(data.soil_moisture);
+      const avgMoisture = (moistureReadings.reduce((a, b) => a + b, 0) / moistureReadings.length).toFixed(1);
+
+      document.getElementById('maxTemp').innerText = maxTemp;
+      document.getElementById('minHumidity').innerText = minHumidity;
+      document.getElementById('avgMoisture').innerText = avgMoisture;
+
+      // Last Updated Time
+      document.getElementById('lastUpdated').innerText = new Date().toLocaleTimeString();
+
       if (data.humidity > 80 && data.temperature < 30) {
         document.getElementById('aiRain').innerText = '🌧️ High chance of rain';
+        document.getElementById('aiTip').innerText = 'Hold off irrigation, let the rain do its job!';
       } else if (data.humidity > 60) {
         document.getElementById('aiRain').innerText = '🌦️ Possible light rain';
+        document.getElementById('aiTip').innerText = 'Reduce watering slightly today.';
       } else {
         document.getElementById('aiRain').innerText = '☀️ No rain expected';
+        document.getElementById('aiTip').innerText = 'Water early in the morning for better absorption.';
       }
 
       if (data.soil_moisture < 40) {
@@ -91,6 +137,7 @@
 
       const labels = ["Temp", "Humidity", "Moisture"];
       const values = [data.temperature, data.humidity, data.soil_moisture];
+
       if (chart) chart.destroy();
       chart = new Chart(document.getElementById('sensorChart'), {
         type: 'bar',
