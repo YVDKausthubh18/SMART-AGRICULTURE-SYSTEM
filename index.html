@@ -3,10 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <title>Smart Agriculture Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
+    :root {
+      --bg: #e0f7df;
+      --text: #1b5e20;
+      --card-bg: #fff;
+    }
+
+    body.dark {
+      --bg: #121212;
+      --text: #ffffff;
+      --card-bg: #1e1e1e;
+    }
+
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #e0f7df;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
       margin: 0;
       padding: 0;
       display: flex;
@@ -15,66 +29,152 @@
     }
 
     h1 {
-      margin-top: 40px;
-      color: #2e7d32;
+      margin-top: 30px;
     }
 
     .card {
-      background-color: #ffffff;
+      background-color: var(--card-bg);
       border-radius: 12px;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-      padding: 25px 35px;
+      padding: 20px 30px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
       margin: 20px;
-      width: 300px;
-      text-align: left;
-    }
-
-    .data-label {
-      font-weight: bold;
-      color: #1b5e20;
+      width: 90%;
+      max-width: 500px;
     }
 
     .data-value {
-      font-size: 1.2em;
+      font-size: 1.1em;
       margin-bottom: 10px;
     }
 
-    footer {
-      margin-top: 30px;
+    .alert {
+      color: red;
+      font-weight: bold;
+    }
+
+    canvas {
+      background: #fff;
+      border-radius: 12px;
+      margin-top: 20px;
+      padding: 10px;
+      max-width: 90%;
+    }
+
+    .footer {
+      margin: 20px;
       font-size: 0.9em;
-      color: #777;
+    }
+
+    .toggle-btn {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--card-bg);
+      color: var(--text);
+      border: none;
+      padding: 10px 15px;
+      border-radius: 20px;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     }
   </style>
 </head>
 <body>
 
-  <h1>🌱 Smart Agriculture Dashboard</h1>
+  <h1>🌾 Smart Agriculture Dashboard</h1>
 
   <div class="card">
-    <div class="data-value"><span class="data-label">🌡️ Temperature:</span> <span id="temp">--</span> °C</div>
-    <div class="data-value"><span class="data-label">💧 Humidity:</span> <span id="hum">--</span> %</div>
-    <div class="data-value"><span class="data-label">🌾 Soil Moisture:</span> <span id="soil">--</span></div>
+    <div class="data-value">🌡️ Temperature: <span id="temp">--</span> °C</div>
+    <div class="data-value">💧 Humidity: <span id="hum">--</span> %</div>
+    <div class="data-value">🌱 Soil Moisture: <span id="soil">--</span></div>
+    <div class="alert" id="alert-msg"></div>
+    <div class="data-value">📅 Last updated: <span id="timestamp">--</span></div>
   </div>
 
-  <footer>Real-time IoT Monitoring using ESP32 + Flask</footer>
+  <canvas id="lineChart" width="600" height="250"></canvas>
+
+  <button class="toggle-btn" onclick="toggleTheme()">🌓 Toggle Mode</button>
+
+  <div class="footer">Powered by ESP32 + Flask + GitHub Pages</div>
 
   <script>
-    const API_URL = "http://192.168.211.247:5000/latest"; // Change to your actual Flask server IP
+    const API_URL = "http://192.168.211.247:5000/latest"; // Change if needed
+
+    let tempData = [], humData = [], timeLabels = [];
+
+    const lineChart = new Chart(document.getElementById("lineChart"), {
+      type: 'line',
+      data: {
+        labels: timeLabels,
+        datasets: [
+          {
+            label: 'Temperature (°C)',
+            borderColor: 'red',
+            data: tempData,
+            fill: false
+          },
+          {
+            label: 'Humidity (%)',
+            borderColor: 'blue',
+            data: humData,
+            fill: false
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: { title: { display: true, text: 'Time' }},
+          y: { title: { display: true, text: 'Value' }}
+        }
+      }
+    });
+
+    function updateData(temp, hum, soil) {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString();
+
+      tempData.push(temp);
+      humData.push(hum);
+      timeLabels.push(timeStr);
+
+      if (tempData.length > 10) {
+        tempData.shift();
+        humData.shift();
+        timeLabels.shift();
+      }
+
+      lineChart.update();
+
+      document.getElementById("temp").textContent = temp.toFixed(1);
+      document.getElementById("hum").textContent = hum.toFixed(1);
+      document.getElementById("soil").textContent = soil;
+      document.getElementById("timestamp").textContent = now.toLocaleString();
+
+      // Alerts
+      let alertMsg = "";
+      if (soil < 600) alertMsg += "⚠️ Soil is dry!<br>";
+      if (temp > 40) alertMsg += "🔥 High Temperature!<br>";
+      if (hum < 30) alertMsg += "💨 Low Humidity!<br>";
+      document.getElementById("alert-msg").innerHTML = alertMsg;
+    }
 
     async function fetchData() {
       try {
-        const response = await fetch(API_URL);
-        const data = await response.json();
-        document.getElementById("temp").textContent = data.temperature.toFixed(1);
-        document.getElementById("hum").textContent = data.humidity.toFixed(1);
-        document.getElementById("soil").textContent = data.soil_moisture;
-      } catch (error) {
-        console.error("Error fetching data:", error);
+        const res = await fetch(API_URL);
+        const data = await res.json();
+        updateData(data.temperature, data.humidity, data.soil_moisture);
+      } catch (e) {
+        console.error("Fetch error:", e);
       }
     }
 
-    setInterval(fetchData, 5000); // Refresh every 5 seconds
-    fetchData(); // Initial fetch
+    function toggleTheme() {
+      document.body.classList.toggle("dark");
+    }
+
+    setInterval(fetchData, 5000);
+    fetchData();
   </script>
 
 </body>
